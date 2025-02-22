@@ -32,7 +32,7 @@ function Detection() {
       setIsLoading(true);
 
       // TODO: Replace with your actual API endpoint
-      const response = await fetch('YOUR_API_ENDPOINT', {
+      const response = await fetch('https://colab.research.google.com/drive/1FqFwjOXfdF8fgphui31K7BW8tKi6lliZ?usp=sharing', {
         method: 'POST',
         body: formData,
       });

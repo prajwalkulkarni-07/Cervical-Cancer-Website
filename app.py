@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request
+from flask import Flask, request, jsonify
+from flask_ngrok import run_with_ngrok
 import tensorflow as tf
 import numpy as np
 from PIL import Image
@@ -7,13 +8,14 @@ import logging
 
 # Initialize Flask app
 app = Flask(__name__)
+run_with_ngrok(app)  # This will start ngrok when you run the app
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 
-# Model path
-MODEL_PATH = "model/end.h5"
-UPLOAD_FOLDER = "static/uploads/"
+# Model path (ensure your model is accessible or upload it to Colab)
+MODEL_PATH = "/content/drive/MyDrive/Cervical Cancer Website/Ensemble.h5"
+UPLOAD_FOLDER = "/content/drive/MyDrive/Cervical Cancer Website/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -57,34 +59,31 @@ def preprocess_image(image_path):
         logging.error(f"❌ Error preprocessing image: {e}")
         return None
 
-@app.route("/", methods=["GET", "POST"])
-def home():
-    if request.method == "POST":
-        if "file" not in request.files:
-            return "No file uploaded", 400
-        
-        file = request.files["file"]
-        if file.filename == "" or not allowed_file(file.filename):
-            return "Invalid file type. Upload PNG, JPG, or JPEG.", 400
-        
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-        file.save(filepath)
+@app.route("/", methods=["POST"])
+def predict():
+    if "image" not in request.files:
+        return "No image uploaded", 400
 
-        img_array = preprocess_image(filepath)
-        if img_array is None:
-            return "Error processing image", 400
+    file = request.files["image"]
+    if file.filename == "" or not allowed_file(file.filename):
+        return "Invalid file type. Upload PNG, JPG, or JPEG.", 400
 
-        if model is not None:
-            predictions = model.predict(img_array)[0]  # Get class probabilities
-            class_index = np.argmax(predictions)  # Get class index
-            predicted_class = CLASS_LABELS[class_index]  # Get class label
-            confidence = f"Confidence: {predictions[class_index] * 100:.2f}%"
-        else:
-            return "Model not loaded properly", 500
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+    file.save(filepath)
 
-        return render_template("index.html", result=predicted_class, confidence=confidence, image_url=filepath)
-    
-    return render_template("index.html", result=None, confidence=None, image_url=None)
+    img_array = preprocess_image(filepath)
+    if img_array is None:
+        return "Error processing image", 400
+
+    if model is not None:
+        predictions = model.predict(img_array)[0]
+        class_index = np.argmax(predictions)
+        predicted_class = CLASS_LABELS[class_index]
+        confidence = float(predictions[class_index])
+    else:
+        return "Model not loaded properly", 500
+
+    return jsonify(result=predicted_class, confidence=confidence)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run()
